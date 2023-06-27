@@ -1,0 +1,13 @@
+{
+  "dev00-test04": {
+    "file_path": "/var/log/messages",
+    "log_group_name": "/webassessortest/test00",
+	"log_stream_name": "dev00-test04.log"
+  },
+  "dev00-test05": {
+    "file_path": "/var/log/messages",
+    "log_group_name": "/webassessortest/test01",
+	"log_stream_name": "dev00-test05.log"
+	
+  }
+}
