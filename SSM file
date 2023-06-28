@@ -5,48 +5,13 @@
   "mainSteps": [
     {
       "action": "aws:runShellScript",
-      "name": "getHostname",
+      "name": "download",
       "inputs": {
         "runCommand": [
           "#!/bin/bash",
-          "hostname=$(hostname)",
-          "echo $hostname"
-        ]
-      }
-    },
-    {
-      "action": "aws:runShellScript",
-      "name": "download01",
-      "inputs": {
-        "runCommand": [
-          "#!/bin/bash",
-          "# Download the cloudwatch_logs_collect_list.json file from S3",
-          "aws s3 cp s3://cloudwatchconfigtest01/config/config.json /tmp/config.json"
-        ]
-      }
-    },
-    {
-      "action": "aws:runShellScript",
-      "name": "download02",
-      "inputs": {
-        "runCommand": [
-          "#!/bin/bash",
-          "# Download the cloudwatch_logs_collect_list.json file from S3",
-          "aws s3 cp s3://cloudwatchconfigtest01/config/cloudwatch_logs_collect_list.json /tmp/cloudwatch_logs_collect_list.json"
-        ]
-      }
-    },
-    {
-      "action": "aws:runShellScript",
-      "name": "replace",
-      "inputs": {
-        "runCommand": [
-          "#!/bin/bash",
-          "hostname=$(hostname)",
-          "echo $hostname",
-          "# Fetch the object matching the hostname using jq",
-          "cd /tmp",
-          "sed -i \"s/\\${HOSTNAME}/$(hostname)/g\" config.json"
+          "# Download the loglist.json file from S3",
+          "aws s3 cp s3://krycloudwatchconfig/config/config.json /tmp/config.json",
+          "aws s3 cp s3://krycloudwatchconfig/config/loglist.json /tmp/loglist.json"
         ]
       }
     },
@@ -60,9 +25,46 @@
           "echo $hostname",
           "# Fetch the object matching the hostname using jq",
           "cd /tmp",
-          "newob=$(cat cloudwatch_logs_collect_list.json | jq -r .'\"$hostname\"')",
-          "cat config.json | jq --argjson newob \"$newob\" -r '.logs.logs_collected.files.collect_list += [$newob]'",
+          "object=$(jq --arg hostname \"$hostname\" '.[$hostname]' loglist.json | jq -c '.')",
+          "jq --argjson object \"$object\" -r '.logs.logs_collected.files.collect_list += [$object]' config.json > temp.json && mv temp.json config.json",
           "echo $PWD"
+        ]
+      }
+    },
+    {
+      "action": "aws:runShellScript",
+      "name": "replace",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "hostname=$(hostname)",
+          "echo $hostname",
+          "# Fetch the object matching the hostname using jq",
+          "cd /tmp",
+          "sed -i \"s/\\${HOSTNAME}/$(hostname)/g\" config.json",
+          "mv config.json /opt/wa-aws/Amazoncloudwatch/config.json",
+          "rm -rf loglist.json"
+        ]
+      }
+    },
+    {
+      "action": "aws:runShellScript",
+      "name": "initializeAndStartAgent",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/wa-aws/Amazoncloudwatch/config.json -s",
+          "if [ $? -eq 0 ]; then",
+          "  echo 'No parsing errors. reStarting the agent...'",
+          "  sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a restart",
+          "else",
+          "  echo 'Parsing error encountered. Applying workaround...'",
+          "  sudo mkdir /usr/share/collectd",
+          "  sudo touch /usr/share/collectd/types.db",
+          "  echo 'Parsing errors fix. reStarting the agent...'",
+          "  sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/wa-aws/Amazoncloudwatch/config.json -s",
+          "  sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a restart",
+          "fi"
         ]
       }
     }
