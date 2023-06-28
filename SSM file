@@ -21,7 +21,7 @@
         "runCommand": [
           "#!/bin/bash",
           "# Download the cloudwatch_logs_collect_list.json file from S3",
-          "aws s3 cp s3://cloudwatchconfigtest01/config/cloudwatch_logs_collect_list.json /tmp/cloudwatch_logs_collect_list.json"
+          "aws s3 cp s3://cloudwatchconfigtest01/config/config.json /tmp/config.json"
         ]
       }
     },
@@ -32,7 +32,21 @@
         "runCommand": [
           "#!/bin/bash",
           "# Download the cloudwatch_logs_collect_list.json file from S3",
-          "aws s3 cp s3://cloudwatchconfigtest01/config/config.json /tmp/config.json"
+          "aws s3 cp s3://cloudwatchconfigtest01/config/cloudwatch_logs_collect_list.json /tmp/cloudwatch_logs_collect_list.json"
+        ]
+      }
+    },
+    {
+      "action": "aws:runShellScript",
+      "name": "replace",
+      "inputs": {
+        "runCommand": [
+          "#!/bin/bash",
+          "hostname=$(hostname)",
+          "echo $hostname",
+          "# Fetch the object matching the hostname using jq",
+          "cd /tmp",
+          "sed -i \"s/\\${HOSTNAME}/$(hostname)/g\" config.json"
         ]
       }
     },
@@ -46,8 +60,8 @@
           "echo $hostname",
           "# Fetch the object matching the hostname using jq",
           "cd /tmp",
-          "object=$(jq '.[\"dev00-test04\"]' cloudwatch_logs_collect_list.json | jq -c '.')",
-          "echo \"$object\" > /opt/wa-aws/Amazoncloudwatch/config.json",
+          "newob=$(cat cloudwatch_logs_collect_list.json | jq -r .'\"$hostname\"')",
+          "cat config.json | jq --argjson newob \"$newob\" -r '.logs.logs_collected.files.collect_list += [$newob]'",
           "echo $PWD"
         ]
       }
